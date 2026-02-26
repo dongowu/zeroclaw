@@ -109,6 +109,175 @@ impl Provider for PluginProvider {
         .await
     }
 }
+
+/// Construction strategy for static OpenAI-compatible provider descriptors.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OpenAiCompatibleFactoryKind {
+    Standard,
+    NoResponsesFallback,
+}
+
+/// Canonical metadata for one static OpenAI-compatible provider and its aliases.
+#[derive(Clone, Copy, Debug)]
+struct OpenAiCompatibleProviderDescriptor {
+    name: &'static str,
+    aliases: &'static [&'static str],
+    display_name: &'static str,
+    base_url: &'static str,
+    factory_kind: OpenAiCompatibleFactoryKind,
+}
+
+const OPENAI_COMPATIBLE_PROVIDER_DESCRIPTORS: &[OpenAiCompatibleProviderDescriptor] = &[
+    OpenAiCompatibleProviderDescriptor {
+        name: "venice",
+        aliases: &["venice"],
+        display_name: "Venice",
+        base_url: "https://api.venice.ai",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "vercel",
+        aliases: &["vercel", "vercel-ai"],
+        display_name: "Vercel AI Gateway",
+        base_url: VERCEL_AI_GATEWAY_BASE_URL,
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "cloudflare",
+        aliases: &["cloudflare", "cloudflare-ai"],
+        display_name: "Cloudflare AI Gateway",
+        base_url: "https://gateway.ai.cloudflare.com/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "synthetic",
+        aliases: &["synthetic"],
+        display_name: "Synthetic",
+        base_url: "https://api.synthetic.new/openai/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "opencode",
+        aliases: &["opencode", "opencode-zen"],
+        display_name: "OpenCode Zen",
+        base_url: "https://opencode.ai/zen/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "groq",
+        aliases: &["groq"],
+        display_name: "Groq",
+        base_url: "https://api.groq.com/openai/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "mistral",
+        aliases: &["mistral"],
+        display_name: "Mistral",
+        base_url: "https://api.mistral.ai/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "xai",
+        aliases: &["xai", "grok"],
+        display_name: "xAI",
+        base_url: "https://api.x.ai",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "deepseek",
+        aliases: &["deepseek"],
+        display_name: "DeepSeek",
+        base_url: "https://api.deepseek.com",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "together",
+        aliases: &["together", "together-ai"],
+        display_name: "Together AI",
+        base_url: "https://api.together.xyz",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "fireworks",
+        aliases: &["fireworks", "fireworks-ai"],
+        display_name: "Fireworks AI",
+        base_url: "https://api.fireworks.ai/inference/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "novita",
+        aliases: &["novita"],
+        display_name: "Novita AI",
+        base_url: "https://api.novita.ai/openai",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "perplexity",
+        aliases: &["perplexity"],
+        display_name: "Perplexity",
+        base_url: "https://api.perplexity.ai",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "cohere",
+        aliases: &["cohere"],
+        display_name: "Cohere",
+        base_url: "https://api.cohere.com/compatibility",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "nvidia",
+        aliases: &["nvidia", "nvidia-nim", "build.nvidia.com"],
+        display_name: "NVIDIA NIM",
+        base_url: "https://integrate.api.nvidia.com/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::NoResponsesFallback,
+    },
+    OpenAiCompatibleProviderDescriptor {
+        name: "astrai",
+        aliases: &["astrai"],
+        display_name: "Astrai",
+        base_url: "https://as-trai.com/v1",
+        factory_kind: OpenAiCompatibleFactoryKind::Standard,
+    },
+];
+
+/// Return static descriptors used by the provider factory for simple compatible endpoints.
+fn openai_compatible_provider_descriptors() -> &'static [OpenAiCompatibleProviderDescriptor] {
+    OPENAI_COMPATIBLE_PROVIDER_DESCRIPTORS
+}
+
+/// Resolve a provider alias to its static OpenAI-compatible descriptor.
+fn openai_compatible_provider_descriptor(
+    name: &str,
+) -> Option<&'static OpenAiCompatibleProviderDescriptor> {
+    openai_compatible_provider_descriptors()
+        .iter()
+        .find(|descriptor| descriptor.aliases.contains(&name))
+}
+
+/// Build a provider instance from a static descriptor while preserving auth style defaults.
+fn build_openai_compatible_provider_from_descriptor(
+    descriptor: &OpenAiCompatibleProviderDescriptor,
+    key: Option<&str>,
+) -> Box<dyn Provider> {
+    match descriptor.factory_kind {
+        OpenAiCompatibleFactoryKind::Standard => Box::new(OpenAiCompatibleProvider::new(
+            descriptor.display_name,
+            descriptor.base_url,
+            key,
+            AuthStyle::Bearer,
+        )),
+        OpenAiCompatibleFactoryKind::NoResponsesFallback => {
+            Box::new(OpenAiCompatibleProvider::new_no_responses_fallback(
+                descriptor.display_name,
+                descriptor.base_url,
+                key,
+                AuthStyle::Bearer,
+            ))
+        }
+    }
+}
 pub(crate) fn is_minimax_intl_alias(name: &str) -> bool {
     matches!(
         name,
@@ -657,8 +826,6 @@ pub(crate) fn canonical_china_provider_name(name: &str) -> Option<&'static str> 
         Some("zai")
     } else if is_qianfan_alias(name) {
         Some("qianfan")
-    } else if is_doubao_alias(name) {
-        Some("doubao")
     } else if is_siliconflow_alias(name) {
         Some("siliconflow")
     } else if is_stepfun_alias(name) {
@@ -1028,14 +1195,6 @@ fn resolve_provider_credential(name: &str, credential_override: Option<&str>) ->
     None
 }
 
-/// Check whether a provider credential can be resolved from override/env fallbacks.
-///
-/// This mirrors provider credential resolution while avoiding exposing the
-/// resolved secret value to callers that only need presence/absence.
-pub fn has_provider_credential(name: &str, credential_override: Option<&str>) -> bool {
-    resolve_provider_credential(name, credential_override).is_some()
-}
-
 /// Returns true if the provider can resolve any credential from the given override and/or
 /// its supported environment/cached sources.
 ///
@@ -1073,6 +1232,14 @@ pub(crate) fn provider_credential_available(name: &str, credential_override: Opt
     }
 
     resolve_provider_credential(name, credential_override).is_some()
+}
+
+/// Check whether a provider credential can be resolved from override/env fallbacks.
+///
+/// This mirrors provider credential resolution while avoiding exposing the
+/// resolved secret value to callers that only need presence/absence.
+pub fn has_provider_credential(name: &str, credential_override: Option<&str>) -> bool {
+    provider_credential_available(name, credential_override)
 }
 
 fn parse_custom_provider_url(
@@ -1195,24 +1362,12 @@ fn create_provider_with_url_and_options(
         "telnyx" => Ok(Box::new(telnyx::TelnyxProvider::new(key))),
 
         // ── OpenAI-compatible providers ──────────────────────
-        "venice" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Venice",
-            "https://api.venice.ai",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "vercel" | "vercel-ai" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Vercel AI Gateway",
-            VERCEL_AI_GATEWAY_BASE_URL,
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "cloudflare" | "cloudflare-ai" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Cloudflare AI Gateway",
-            "https://gateway.ai.cloudflare.com/v1",
-            key,
-            AuthStyle::Bearer,
-        ))),
+        name if openai_compatible_provider_descriptor(name).is_some() => {
+            let descriptor = openai_compatible_provider_descriptor(name).expect("checked in guard");
+            Ok(build_openai_compatible_provider_from_descriptor(
+                descriptor, key,
+            ))
+        }
         name if moonshot_base_url(name).is_some() => Ok(Box::new(OpenAiCompatibleProvider::new(
             "Moonshot",
             moonshot_base_url(name).expect("checked in guard"),
@@ -1228,18 +1383,6 @@ fn create_provider_with_url_and_options(
                 "KimiCLI/0.77",
             )))
         }
-        "synthetic" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Synthetic",
-            "https://api.synthetic.new/openai/v1",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "opencode" | "opencode-zen" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "OpenCode Zen",
-            "https://opencode.ai/zen/v1",
-            key,
-            AuthStyle::Bearer,
-        ))),
         name if zai_base_url(name).is_some() => Ok(Box::new(OpenAiCompatibleProvider::new(
             "Z.AI",
             zai_base_url(name).expect("checked in guard"),
@@ -1328,62 +1471,6 @@ fn create_provider_with_url_and_options(
                 true,
             )))
         }
-
-        // ── Extended ecosystem (community favorites) ─────────
-        "groq" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Groq",
-            "https://api.groq.com/openai/v1",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "mistral" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Mistral",
-            "https://api.mistral.ai/v1",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "xai" | "grok" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "xAI",
-            "https://api.x.ai",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "deepseek" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "DeepSeek",
-            "https://api.deepseek.com",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "together" | "together-ai" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Together AI",
-            "https://api.together.xyz",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "fireworks" | "fireworks-ai" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Fireworks AI",
-            "https://api.fireworks.ai/inference/v1",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "novita" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Novita AI",
-            "https://api.novita.ai/openai",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "perplexity" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Perplexity",
-            "https://api.perplexity.ai",
-            key,
-            AuthStyle::Bearer,
-        ))),
-        "cohere" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Cohere",
-            "https://api.cohere.com/compatibility",
-            key,
-            AuthStyle::Bearer,
-        ))),
         "copilot" | "github-copilot" => Ok(Box::new(copilot::CopilotProvider::new(key))),
         "cursor" => Ok(Box::new(cursor::CursorProvider::new())),
         "lmstudio" | "lm-studio" => {
@@ -1454,23 +1541,6 @@ fn create_provider_with_url_and_options(
                 AuthStyle::Bearer,
             )))
         }
-        "nvidia" | "nvidia-nim" | "build.nvidia.com" => Ok(Box::new(
-            OpenAiCompatibleProvider::new_no_responses_fallback(
-                "NVIDIA NIM",
-                "https://integrate.api.nvidia.com/v1",
-                key,
-                AuthStyle::Bearer,
-            ),
-        )),
-
-        // ── AI inference routers ─────────────────────────────
-        "astrai" => Ok(Box::new(OpenAiCompatibleProvider::new(
-            "Astrai",
-            "https://as-trai.com/v1",
-            key,
-            AuthStyle::Bearer,
-        ))),
-
         // ── Cloud AI endpoints ───────────────────────────────
         "ovhcloud" | "ovh" => Ok(Box::new(openai::OpenAiProvider::with_base_url(
             Some("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1"),
@@ -1735,6 +1805,10 @@ pub fn create_routed_provider_with_options(
             route_options.provider_transport = Some(transport.to_string());
         }
 
+        if route.max_tokens.is_some() {
+            route_options.max_tokens_override = route.max_tokens;
+        }
+
         match create_resilient_provider_with_options(
             &route.provider,
             key,
@@ -1780,7 +1854,6 @@ pub fn create_routed_provider_with_options(
 
     // Keep only successfully initialized routed providers and preserve
     // their provider-id bindings (e.g. "<provider>#<hint>").
-
     Ok(Box::new(
         router::RouterProvider::new(
             providers,
@@ -2393,6 +2466,49 @@ mod tests {
         assert_eq!(canonical_china_provider_name("hunyuan"), Some("hunyuan"));
         assert_eq!(canonical_china_provider_name("tencent"), Some("hunyuan"));
         assert_eq!(canonical_china_provider_name("openai"), None);
+    }
+
+    #[test]
+    fn openai_compatible_descriptor_resolves_expected_aliases() {
+        let vercel = openai_compatible_provider_descriptor("vercel-ai")
+            .expect("vercel-ai alias should be registered");
+        assert_eq!(vercel.name, "vercel");
+        assert_eq!(vercel.base_url, VERCEL_AI_GATEWAY_BASE_URL);
+
+        let xai =
+            openai_compatible_provider_descriptor("grok").expect("grok alias should be registered");
+        assert_eq!(xai.name, "xai");
+
+        let nvidia = openai_compatible_provider_descriptor("build.nvidia.com")
+            .expect("build.nvidia.com alias should be registered");
+        assert_eq!(nvidia.name, "nvidia");
+        assert!(
+            matches!(
+                nvidia.factory_kind,
+                OpenAiCompatibleFactoryKind::NoResponsesFallback
+            ),
+            "nvidia descriptor must keep no-responses fallback behavior"
+        );
+
+        assert!(
+            openai_compatible_provider_descriptor("openrouter").is_none(),
+            "non-openai-compatible static providers should not be in descriptor table"
+        );
+    }
+
+    #[test]
+    fn openai_compatible_descriptor_aliases_are_unique() {
+        use std::collections::HashSet;
+
+        let mut aliases = HashSet::new();
+        for descriptor in openai_compatible_provider_descriptors() {
+            for alias in descriptor.aliases {
+                assert!(
+                    aliases.insert(*alias),
+                    "duplicate alias detected in descriptor table: {alias}"
+                );
+            }
+        }
     }
 
     #[test]
