@@ -1087,16 +1087,45 @@ fn build_systemd_env_vars() -> String {
     for &var in SERVICE_ENV_VARS {
         if let Ok(val) = std::env::var(var) {
             if !val.is_empty() {
-                // systemd Environment values with special chars need quoting
-                lines.push(format!("Environment=\"{var}={val}\""));
+                lines.push((var, val));
             }
         }
     }
-    if lines.is_empty() {
+    build_systemd_env_vars_from_pairs(lines)
+}
+
+fn build_systemd_env_vars_from_pairs<I, V>(pairs: I) -> String
+where
+    I: IntoIterator<Item = (&'static str, V)>,
+    V: AsRef<str>,
+{
+    let rendered: Vec<String> = pairs
+        .into_iter()
+        .map(|(var, value)| {
+            let escaped = escape_systemd_env_value(value.as_ref());
+            format!("Environment=\"{var}={escaped}\"")
+        })
+        .collect();
+    if rendered.is_empty() {
         String::new()
     } else {
-        format!("{}\n", lines.join("\n"))
+        format!("{}\n", rendered.join("\n"))
     }
+}
+
+fn escape_systemd_env_value(raw: &str) -> String {
+    let mut escaped = String::with_capacity(raw.len());
+    for ch in raw.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 fn macos_service_file() -> Result<PathBuf> {
@@ -1192,6 +1221,20 @@ mod tests {
     #[test]
     fn windows_task_name_is_constant() {
         assert_eq!(windows_task_name(), "ZeroClaw Daemon");
+    }
+
+    #[test]
+    fn escape_systemd_env_value_escapes_special_chars() {
+        let escaped = escape_systemd_env_value("a\\b\"c\nd\re\tf");
+        assert_eq!(escaped, "a\\\\b\\\"c\\nd\\re\\tf");
+    }
+
+    #[test]
+    fn build_systemd_env_vars_escapes_injected_values() {
+        let rendered =
+            build_systemd_env_vars_from_pairs([("OPENAI_API_KEY", "value\"with\\special\nline")]);
+
+        assert!(rendered.contains("Environment=\"OPENAI_API_KEY=value\\\"with\\\\special\\nline\""));
     }
 
     #[cfg(target_os = "windows")]
